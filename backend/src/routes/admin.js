@@ -170,8 +170,9 @@ router.get('/top-products', async (req, res, next) => {
       });
     });
 
+    // Sort products by total quantity sold (units) so ranking reflects volume, not revenue
     const products = Object.values(productMap)
-      .sort((a, b) => b.totalRevenue - a.totalRevenue);
+      .sort((a, b) => b.totalQuantity - a.totalQuantity);
 
     return res.json(products);
   } catch (error) {

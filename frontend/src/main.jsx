@@ -101,7 +101,6 @@ function CustomerOrder({ qrCode }) {
   const [historyPage, setHistoryPage]   = useState(1);
   const [paymentChoiceOpen, setPaymentChoiceOpen] = useState(false);
   const [draftOrder, setDraftOrder]     = useState(null);
-  const [transferIntent, setTransferIntent] = useState(null);
   const [successPopup, setSuccessPopup] = useState(null);
   const [infoPopup, setInfoPopup]       = useState(null);
 
@@ -112,64 +111,10 @@ function CustomerOrder({ qrCode }) {
 
   useEffect(() => { loadCatalog(); }, [qrCode]);
 
-  async function resolveTransferSuccess(result) {
-    const latestOrders = await loadHistory();
-    const paidOrder = result.order || latestOrders.find((o) => o.paymentStatus === 'PAID');
-    if (!paidOrder) return false;
-    setTransferIntent(null);
-    setDraftOrder(null);
-    setCart({});
-    setNote('');
-    setSuccessPopup({ kind: 'transfer', order: paidOrder });
-    setMessage('Thanh toán chuyển khoản đã thành công.');
-    return true;
-  }
-
-  async function syncTransferIntent(intentId) {
-    if (!intentId) return null;
-    const result = await api(`/api/public/payment-intents/${intentId}`);
-    setTransferIntent((current) => ({ ...current, ...result.intent }));
-    if (result.intent.status === 'PAID') await resolveTransferSuccess(result);
-    if (['FAILED', 'CANCELLED'].includes(result.intent.status)) {
-      setTransferIntent(null);
-      setDraftOrder(null);
-      setInfoPopup({ title: 'Chưa tạo đơn', body: 'Nếu chưa thanh toán thì đơn hàng chưa được tạo.' });
-    }
-    return result;
-  }
-
-  useRealtimeUpdates(['menu', 'tables', 'orders', 'payment-intents'], (payload) => {
-    if (payload.resource === 'payment-intents' && transferIntent?.id && payload.intentId === transferIntent.id) {
-      if (payload.action === 'paid') syncTransferIntent(payload.intentId).catch(() => {});
-      else if (payload.action === 'failed') {
-        setTransferIntent(null);
-        setDraftOrder(null);
-        setInfoPopup({ title: 'Thanh toán thất bại', body: 'Giao dịch chưa được ghi nhận, nên đơn hàng chưa được tạo.' });
-      }
-      return;
-    }
+  useRealtimeUpdates(['menu', 'tables', 'orders'], (payload) => {
     if (cartLines.length === 0) loadCatalog();
     if (authorized && phone.length >= 8) loadHistory();
   });
-
-  useEffect(() => {
-    if (!transferIntent?.id) return undefined;
-    let cancelled = false;
-    let timerId = null;
-    const pollTransferStatus = async () => {
-      try {
-        const result = await syncTransferIntent(transferIntent.id);
-        if (cancelled) return;
-        const status = result?.intent?.status;
-        if (!status || ['PAID', 'FAILED', 'CANCELLED'].includes(status)) return;
-        timerId = window.setTimeout(pollTransferStatus, 3000);
-      } catch {
-        if (!cancelled) timerId = window.setTimeout(pollTransferStatus, 5000);
-      }
-    };
-    pollTransferStatus();
-    return () => { cancelled = true; if (timerId) window.clearTimeout(timerId); };
-  }, [transferIntent?.id]);
 
   const loadHistory = () => {
     if (authorized && phone.length >= 8) {
@@ -229,7 +174,7 @@ function CustomerOrder({ qrCode }) {
     setPaymentChoiceOpen(true);
   }
 
-  async function chooseCash() {
+  async function confirmOrder() {
     if (!draftOrder) return;
     try {
       const order = await api('/api/public/orders', { method: 'POST', body: JSON.stringify({ ...draftOrder, paymentMethod: 'CASH' }) });
@@ -238,27 +183,9 @@ function CustomerOrder({ qrCode }) {
       setCart({});
       setNote('');
       await loadHistory();
-      setSuccessPopup({ kind: 'cash', order });
+      setSuccessPopup({ order });
     } catch (err) {
-      setMessage(err.message || 'Không thể tạo đơn tiền mặt');
-    }
-  }
-
-  async function chooseTransfer() {
-    if (!draftOrder) return;
-    try {
-      const result = await api('/api/public/payment-intents', { method: 'POST', body: JSON.stringify(draftOrder) });
-      const intent = result?.intent || result;
-
-      if (!intent || typeof intent !== 'object') {
-        throw new Error('Phản hồi thanh toán không hợp lệ');
-      }
-
-      setPaymentChoiceOpen(false);
-      setTransferIntent(intent);
-      setDraftOrder(null);
-    } catch (err) {
-      setMessage(err.message || 'Không thể tạo yêu cầu chuyển khoản');
+      setMessage(err.message || 'Không thể gửi yêu cầu gọi món');
     }
   }
 
@@ -266,21 +193,6 @@ function CustomerOrder({ qrCode }) {
     await api(`/api/public/orders/${orderId}/cancel`, { method: 'PATCH', body: JSON.stringify({ phone }) });
     await loadHistory();
     setMessage('Đã hủy đơn đang chờ.');
-  }
-
-  async function cancelTransfer() {
-    if (!transferIntent?.id) return;
-    await api(`/api/public/payment-intents/${transferIntent.id}`, { method: 'DELETE', body: JSON.stringify({ phone }) });
-    setTransferIntent(null);
-    setInfoPopup({ title: 'Đã hủy giao dịch', body: 'Nếu chưa thanh toán thì đơn hàng chưa được tạo.' });
-  }
-
-  function downloadQr() {
-    const url = transferIntent?.qrDataUrl || transferIntent?.payosCheckoutUrl;
-    if (!url) return;
-    const a = document.createElement('a');
-    a.href = url; a.download = `payos-${transferIntent.referenceCode || 'qr'}.png`;
-    a.rel = 'noopener noreferrer'; document.body.append(a); a.click(); a.remove();
   }
 
   if (!authorized) {
@@ -464,32 +376,12 @@ function CustomerOrder({ qrCode }) {
         <div className="modal-backdrop">
           <div className="modal">
             <button className="modal-close-btn" type="button" aria-label="Đóng" onClick={() => { setPaymentChoiceOpen(false); setDraftOrder(null); }}>✕</button>
-            <div className="modal-icon info"><ReceiptText size={24} /></div>
-            <h2>Chọn hình thức thanh toán</h2>
-            <p>Đơn được tạo ngay với tiền mặt. Chuyển khoản sẽ chờ ngân hàng xác nhận.</p>
+            <div className="modal-icon info"><Utensils size={24} /></div>
+            <h2>Xác nhận gọi món</h2>
+            <p>Đơn hàng của bạn sẽ được chuyển đến nhà bếp để chế biến. Bạn đồng ý gửi yêu cầu chứ?</p>
             <div className="modal-actions">
-              <button className="btn btn-primary btn-full btn-lg" onClick={chooseCash}>💵 Tiền mặt</button>
-              <button className="btn btn-ghost btn-full btn-lg" onClick={chooseTransfer}>🏦 Chuyển khoản</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {transferIntent && (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <div className="modal-icon info"><QrCode size={24} /></div>
-            <h2>Quét mã QR chuyển khoản</h2>
-            <p>Sau khi ngân hàng xác nhận, đơn hàng mới được tạo tự động.</p>
-            {transferIntent.qrDataUrl && (
-              <div className="payment-qr-box">
-                <img src={transferIntent.qrDataUrl} alt="PayOS QR" />
-                <p>Đang chờ xác nhận ngân hàng…</p>
-              </div>
-            )}
-            <div className="modal-actions">
-              <button className="btn btn-primary btn-full" onClick={downloadQr}><Download size={15} /> Tải ảnh QR</button>
-              <button className="btn btn-danger btn-full" onClick={cancelTransfer}>Hủy giao dịch</button>
+              <button className="btn btn-primary btn-full btn-lg" onClick={confirmOrder}>Gửi yêu cầu</button>
+              <button className="btn btn-ghost btn-full btn-lg" onClick={() => { setPaymentChoiceOpen(false); setDraftOrder(null); }}>Hủy</button>
             </div>
           </div>
         </div>
@@ -500,7 +392,7 @@ function CustomerOrder({ qrCode }) {
           <div className="modal">
             <div className="modal-icon success"><Check size={24} /></div>
             <h2>Gọi món thành công!</h2>
-            <p>{successPopup.kind === 'cash' ? `Đơn #${successPopup.order.dailySequence} đã được tạo ngay — thanh toán khi nhận.` : `Đơn #${successPopup.order.dailySequence} được tạo sau khi ngân hàng xác nhận chuyển khoản.`}</p>
+            <p>Đơn #{successPopup.order?.dailySequence || ''} đã được gửi đến nhà bếp. Quý khách vui lòng thanh toán tại quầy sau khi dùng bữa.</p>
             <div className="modal-actions">
               <button className="btn btn-primary btn-full btn-lg" onClick={() => { setSuccessPopup(null); setActiveTab('history'); }}>Xem đơn của tôi</button>
               <button className="btn btn-ghost btn-full" onClick={() => setSuccessPopup(null)}>Tiếp tục gọi món</button>
@@ -538,7 +430,7 @@ function Pagination({ page, total, onChange }) {
 const STATUS_MAP = {
   NEW: 'Mới', PREPARING: 'Đang làm', DELIVERING: 'Đang giao',
   DELIVERED: 'Đã giao', CANCELLED: 'Đã hủy',
-  PAID: 'Đã TT', UNPAID: 'Chưa TT', PENDING_PAYMENT: 'Đang chờ xác nhận',
+  PAID: 'Đã thanh toán', UNPAID: 'Chưa thanh toán', PENDING_PAYMENT: 'Chưa thanh toán',
 };
 function StatusBadge({ text }) {
   const key = String(text).toLowerCase();
@@ -712,7 +604,7 @@ function DashboardShell({ user, onLogout, onUserChange }) {
     { id: 'overview',     label: 'Doanh thu',   hint: 'Xem doanh thu hôm nay', icon: <BarChart3 size={18} />,        visible: isAdmin },
     { id: 'orders',       label: 'Đang làm',    hint: 'Đơn mới và đang nấu', icon: <ClipboardList size={18} />,     visible: true },
     { id: 'delivery',     label: 'Chờ giao',    hint: 'Đơn chuẩn bị giao', icon: <ReceiptText size={18} />,         visible: true },
-    { id: 'unpaid',       label: 'Đơn chưa TT', hint: 'Các đơn chưa thanh toán', icon: <Banknote size={18} />,       visible: canManage },
+    { id: 'unpaid',       label: 'Đơn chưa TT', hint: 'Các đơn chưa thanh toán', icon: <Banknote size={18} />,       visible: true },
     { id: 'history',      label: 'Lịch sử',     hint: 'Các đơn đã xử lý', icon: <History size={18} />,             visible: true },
     { id: 'menu',         label: 'Menu',        hint: 'Món ăn và giá bán', icon: <Utensils size={18} />,             visible: canManage },
     { id: 'tables',       label: 'Bàn & QR',    hint: 'Mã bàn và in QR', icon: <QrCode size={18} />,                 visible: canManage },
