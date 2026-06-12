@@ -88,6 +88,7 @@ h1,h2,h3,h4 { font-family: var(--font-display); line-height: 1.2; }
 .btn-danger:hover:not(:disabled) { background: #f9d4d1; }
 .btn-full { width: 100%; }
 .btn-lg { min-height: 48px; padding: 12px 20px; font-size: 15px; }
+.btn-sm { min-height: 34px; padding: 6px 12px; font-size: 13px; gap: 5px; }
 
 .field {
   width: 100%; padding: 10px 13px;
@@ -728,7 +729,7 @@ select.field {
 }
 .stepper { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .stepper-btn {
-  width: 30px; height: 30px; border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background: var(--bg2); color: var(--ink); transition: background .15s, transform .1s; flex-shrink: 0;
 }
@@ -1026,4 +1027,69 @@ select.field {
   .cart-total-row { font-size: 14px; }
   .cart-total-row .total-amt { font-size: 1rem; }
   .topbar-actions .btn { padding: 8px 10px; font-size: 13px; }
+  .btn-label-desktop { display: none; }
+  .inline-form { flex-direction: column; align-items: stretch; width: 100%; }
+  .inline-form .field { max-width: 100% !important; width: 100% !important; flex: none; }
+  .inline-form .btn { width: 100%; }
 }
+
+/* Sub-tab segment control styles */
+.sub-tab-bar {
+  display: flex;
+  background: rgba(189,208,160,0.2);
+  padding: 4px;
+  border-radius: var(--radius);
+  gap: 4px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+  max-width: 420px;
+}
+.sub-tab-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px 14px;
+  border-radius: calc(var(--radius) - 4px);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  outline: none;
+}
+.sub-tab-btn.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-s);
+}
+.sub-tab-btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--green);
+}
+
+/* Mobile optimizations for checkboxes and merge layout */
+.mobile-checkbox {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  accent-color: var(--green);
+}
+.table-group-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.table-group-card .order-card {
+  transition: transform 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+}
+.table-group-card .order-card:active {
+  transform: scale(0.98);
+}
+@media (max-width: 640px) {
+  .sub-tab-bar {
+    max-width: 100%;
+  }
+}
+

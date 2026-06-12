@@ -663,9 +663,9 @@ function DashboardShell({ user, onLogout, onUserChange }) {
               title={bellEnabled ? 'Tắt chuông thông báo' : 'Bật chuông thông báo'}
             >
               {bellEnabled ? <Bell size={15} /> : <BellOff size={15} />}
-              {bellEnabled ? 'Chuông' : 'Tắt chuông'}
+              <span className="btn-label-desktop">{bellEnabled ? 'Chuông' : 'Tắt chuông'}</span>
             </button>
-            <button className="btn btn-ghost" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={15} /> Làm mới</button>
+            <button className="btn btn-ghost" onClick={() => setRefresh((v) => v + 1)}><RefreshCw size={15} /> <span className="btn-label-desktop">Làm mới</span></button>
           </div>
         </header>
         <div className="workspace-body">
@@ -1057,10 +1057,18 @@ function Orders({ title, statuses, emptyText = 'Chưa có bill.', user, refreshT
             </div>
             <div className="order-actions">
               <button className="btn btn-ghost" onClick={() => setSelectedOrderId(order.id)}><Eye size={14} /> Chi tiết</button>
-              <button className="btn btn-ghost" onClick={() => update(order.id, { status: 'PREPARING' })}><ChefHat size={14} /> Làm</button>
-              <button className="btn btn-ghost" onClick={() => update(order.id, { status: 'DELIVERING' })}><ReceiptText size={14} /> Giao</button>
-              <button className="btn btn-ghost" onClick={() => update(order.id, { status: 'DELIVERED' })}><Check size={14} /> Xong</button>
-              {order.paymentStatus !== 'PAID' && <button className="btn btn-ghost" onClick={() => update(order.id, { paymentStatus: 'PAID' })}>💵 Đã TT</button>}
+              {order.status === 'NEW' && (
+                <button className="btn btn-primary" onClick={() => update(order.id, { status: 'PREPARING' })}><ChefHat size={14} /> Làm món</button>
+              )}
+              {order.status === 'PREPARING' && (
+                <>
+                  <button className="btn btn-primary" onClick={() => update(order.id, { status: 'DELIVERING' })}><ReceiptText size={14} /> Giao món</button>
+                  <button className="btn btn-primary" onClick={() => update(order.id, { status: 'DELIVERED' })}><Check size={14} /> Xong</button>
+                </>
+              )}
+              {order.status === 'DELIVERING' && (
+                <button className="btn btn-primary" onClick={() => update(order.id, { status: 'DELIVERED' })}><Check size={14} /> Xong</button>
+              )}
               {['OWNER', 'ADMIN'].includes(user?.role) && order.status !== 'CANCELLED' && (
                 <button className="btn btn-danger" onClick={() => update(order.id, { status: 'CANCELLED' })}><Trash2 size={14} /> Hủy</button>
               )}
@@ -1171,6 +1179,8 @@ function OrderHistory({ user, refreshToken }) {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [searchPhone, setSearchPhone] = useState('');
   const [searchDate, setSearchDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // all, unpaid, paid, delivered, cancelled
+
   const load = () => api('/api/orders').then(setOrders);
   useEffect(() => { load(); setPage(1); }, [refreshToken]);
   useRealtimeUpdates(['orders'], load);
@@ -1183,7 +1193,19 @@ function OrderHistory({ user, refreshToken }) {
       const searchDateFormatted = new Date(searchDate).toLocaleDateString('vi-VN');
       dateMatch = orderDate === searchDateFormatted;
     }
-    return phoneMatch && dateMatch;
+
+    let statusMatch = true;
+    if (statusFilter === 'unpaid') {
+      statusMatch = order.paymentStatus !== 'PAID';
+    } else if (statusFilter === 'paid') {
+      statusMatch = order.paymentStatus === 'PAID';
+    } else if (statusFilter === 'delivered') {
+      statusMatch = order.status === 'DELIVERED';
+    } else if (statusFilter === 'cancelled') {
+      statusMatch = order.status === 'CANCELLED';
+    }
+
+    return phoneMatch && dateMatch && statusMatch;
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / HISTORY_PAGE_SIZE));
@@ -1193,10 +1215,21 @@ function OrderHistory({ user, refreshToken }) {
   return (
     <div>
       <div className="section-head"><h2>Lịch sử đơn hàng</h2><span className="count">{filteredOrders.length} đơn</span></div>
+      
+      <div className="sub-tab-bar" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', maxWidth: '100%', marginBottom: 16 }}>
+        <button className={`sub-tab-btn ${statusFilter === 'all' ? 'active' : ''}`} onClick={() => { setStatusFilter('all'); setPage(1); }}>Tất cả</button>
+        <button className={`sub-tab-btn ${statusFilter === 'unpaid' ? 'active' : ''}`} onClick={() => { setStatusFilter('unpaid'); setPage(1); }}>Chưa TT</button>
+        <button className={`sub-tab-btn ${statusFilter === 'paid' ? 'active' : ''}`} onClick={() => { setStatusFilter('paid'); setPage(1); }}>Đã TT</button>
+        <button className={`sub-tab-btn ${statusFilter === 'delivered' ? 'active' : ''}`} onClick={() => { setStatusFilter('delivered'); setPage(1); }}>Đã giao</button>
+        <button className={`sub-tab-btn ${statusFilter === 'cancelled' ? 'active' : ''}`} onClick={() => { setStatusFilter('cancelled'); setPage(1); }}>Đã hủy</button>
+      </div>
+
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 16, marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
         <div className="field-group" style={{ margin: 0 }}><Phone size={16} /><input className="field" type="tel" placeholder="Tìm theo SĐT" value={searchPhone} onChange={(e) => { setSearchPhone(e.target.value); setPage(1); }} /></div>
         <div className="field-group" style={{ margin: 0 }}><Calendar size={16} /><input className="field" type="date" value={searchDate} onChange={(e) => { setSearchDate(e.target.value); setPage(1); }} /></div>
-        {(searchPhone || searchDate) && <button className="btn btn-ghost" onClick={() => { setSearchPhone(''); setSearchDate(''); setPage(1); }} style={{ alignSelf: 'flex-end' }}>Xóa bộ lọc</button>}
+        {(searchPhone || searchDate || statusFilter !== 'all') && (
+          <button className="btn btn-ghost" onClick={() => { setSearchPhone(''); setSearchDate(''); setStatusFilter('all'); setPage(1); }} style={{ alignSelf: 'flex-end' }}>Xóa bộ lọc</button>
+        )}
       </div>
       {filteredOrders.length === 0 && <div className="empty-state"><History size={40} /><p>Chưa có lịch sử đơn.</p></div>}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-s)', overflow: 'hidden' }}>
@@ -1619,6 +1652,31 @@ function UnpaidOrders({ refreshToken, user }) {
 
   const selectedOrder = orders.find((o) => o.id === selectedOrderId);
 
+  const [selectedTableFilter, setSelectedTableFilter] = useState('all');
+
+  const tablesWithUnpaid = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+    orders.forEach((o) => {
+      if (o.table && !seen.has(o.tableId)) {
+        seen.add(o.tableId);
+        list.push(o.table);
+      }
+    });
+    return list.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }, [orders]);
+
+  useEffect(() => {
+    if (selectedTableFilter !== 'all' && !tablesWithUnpaid.some(t => t.id === selectedTableFilter)) {
+      setSelectedTableFilter('all');
+    }
+  }, [tablesWithUnpaid, selectedTableFilter]);
+
+  const filteredOrders = useMemo(() => {
+    if (selectedTableFilter === 'all') return orders;
+    return orders.filter(o => o.tableId === selectedTableFilter);
+  }, [orders, selectedTableFilter]);
+
   // Group orders by table
   const ordersByTable = useMemo(() => {
     const groups = {};
@@ -1634,6 +1692,11 @@ function UnpaidOrders({ refreshToken, user }) {
     });
     return Object.values(groups).sort((a, b) => String(a.table?.name).localeCompare(String(b.table?.name)));
   }, [orders]);
+
+  const filteredOrdersByTable = useMemo(() => {
+    if (selectedTableFilter === 'all') return ordersByTable;
+    return ordersByTable.filter(group => group.table?.id === selectedTableFilter);
+  }, [ordersByTable, selectedTableFilter]);
 
   function toggleOrder(orderId) {
     setSelectedIds(prev => ({
@@ -1652,6 +1715,14 @@ function UnpaidOrders({ refreshToken, user }) {
     });
   }
 
+  const handleCardClick = (e, orderId) => {
+    // Ngăn chặn toggle khi click vào các nút actions hoặc input
+    if (e.target.closest('.order-actions') || e.target.closest('button') || e.target.closest('input[type="checkbox"]')) {
+      return;
+    }
+    toggleOrder(orderId);
+  };
+
   return (
     <div>
       <div className="section-head">
@@ -1659,16 +1730,47 @@ function UnpaidOrders({ refreshToken, user }) {
         <span className="count">{orders.length} đơn</span>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
-        <button className={`btn ${subTab === 'all' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setSubTab('all')}>Tất cả hóa đơn</button>
-        <button className={`btn ${subTab === 'by-table' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setSubTab('by-table')}>Hóa đơn theo bàn</button>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+        <div className="sub-tab-bar" style={{ marginBottom: 0 }}>
+          <button className={`sub-tab-btn ${subTab === 'all' ? 'active' : ''}`} onClick={() => setSubTab('all')}>Tất cả hóa đơn</button>
+          <button className={`sub-tab-btn ${subTab === 'by-table' ? 'active' : ''}`} onClick={() => setSubTab('by-table')}>Hóa đơn theo bàn</button>
+        </div>
+        
+        {tablesWithUnpaid.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-2)' }}>Lọc bàn:</span>
+            <select
+              className="field"
+              value={selectedTableFilter}
+              onChange={(e) => setSelectedTableFilter(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-s)',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--ink)',
+                width: 'auto',
+                minWidth: 140,
+                cursor: 'pointer',
+                height: 38,
+                fontSize: 13,
+                fontWeight: 600
+              }}
+            >
+              <option value="all">🔍 Tất cả bàn</option>
+              {tablesWithUnpaid.map((t) => (
+                <option key={t.id} value={t.id}>🪑 {t.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {orders.length === 0 && <div className="empty-state"><Banknote size={40} /><p>Tất cả đơn hàng đã được thanh toán.</p></div>}
 
       {orders.length > 0 && subTab === 'all' && (
         <div className="orders-grid">
-          {orders.map((order) => (
+          {filteredOrders.map((order) => (
             <div className="order-card" key={order.id}>
               <div className="order-card-header">
                 <div>
@@ -1694,7 +1796,7 @@ function UnpaidOrders({ refreshToken, user }) {
 
       {orders.length > 0 && subTab === 'by-table' && (
         <div>
-          {ordersByTable.map((group) => {
+          {filteredOrdersByTable.map((group) => {
             const tableOrders = group.orders;
             const checkedOrders = tableOrders.filter(o => selectedIds[o.id]);
             const totalOfChecked = checkedOrders.reduce((sum, o) => sum + o.subtotal, 0);
@@ -1705,7 +1807,7 @@ function UnpaidOrders({ refreshToken, user }) {
                 <div className="table-group-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid var(--border)', paddingBottom: 10, marginBottom: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {tableOrders.length > 1 && (
-                      <input type="checkbox" checked={allChecked} onChange={() => toggleTableAll(tableOrders, allChecked)} style={{ width: 18, height: 18, cursor: 'pointer' }} />
+                      <input type="checkbox" checked={allChecked} onChange={() => toggleTableAll(tableOrders, allChecked)} className="mobile-checkbox" />
                     )}
                     <h3 style={{ margin: 0, fontSize: 18 }}>Bàn: {group.table?.name}</h3>
                     <span className="count" style={{ fontSize: 13, background: 'var(--border)', padding: '2px 8px', borderRadius: 12 }}>{tableOrders.length} đơn</span>
@@ -1714,7 +1816,7 @@ function UnpaidOrders({ refreshToken, user }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     {checkedOrders.length >= 2 && (
                       <button className="btn btn-primary btn-sm" onClick={() => mergeOrders(checkedOrders.map(o => o.id))} style={{ background: 'var(--amber)', color: 'var(--amber-dark)' }}>
-                        Gộp {checkedOrders.length} đơn đã chọn ({money(totalOfChecked)})
+                        Gộp {checkedOrders.length} đơn ({money(totalOfChecked)})
                       </button>
                     )}
                   </div>
@@ -1724,10 +1826,10 @@ function UnpaidOrders({ refreshToken, user }) {
                   {tableOrders.map((order) => {
                     const isChecked = !!selectedIds[order.id];
                     return (
-                      <div className="order-card" key={order.id} style={{ border: '1px solid var(--border)', padding: 12, borderRadius: 'var(--radius)', opacity: isChecked ? 1 : 0.6 }}>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <div className="order-card" key={order.id} onClick={(e) => handleCardClick(e, order.id)} style={{ border: '1px solid var(--border)', borderLeft: isChecked ? '4px solid var(--green)' : '1px solid var(--border)', padding: 12, borderRadius: 'var(--radius)', opacity: isChecked ? 1 : 0.6, cursor: tableOrders.length > 1 ? 'pointer' : 'default', transition: 'all 0.15s ease' }}>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                           {tableOrders.length > 1 && (
-                            <input type="checkbox" checked={isChecked} onChange={() => toggleOrder(order.id)} style={{ width: 16, height: 16, marginTop: 3, cursor: 'pointer' }} />
+                            <input type="checkbox" checked={isChecked} onChange={() => toggleOrder(order.id)} className="mobile-checkbox" style={{ marginTop: 2 }} onClick={(e) => e.stopPropagation()} />
                           )}
                           <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
@@ -1831,7 +1933,7 @@ function TableManager({ refreshToken }) {
       <form className="inline-form" onSubmit={submit}>
         <input className="field" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Tên bàn" />
         <input className="field" value={form.qrCode} onChange={(e) => setForm({ ...form, qrCode: e.target.value })} placeholder="Mã QR (tự sinh nếu trống)" />
-        <input className="field" value={form.seats} onChange={(e) => setForm({ ...form, seats: e.target.value })} placeholder="Số ghế" type="number" style={{ maxWidth: 100 }} />
+        <input className="field" value={form.seats} onChange={(e) => setForm({ ...form, seats: e.target.value })} placeholder="Số ghế" type="number" />
         <button className="btn btn-primary" type="submit"><Plus size={15} /> Thêm</button>
       </form>
       <div className="qr-grid">
