@@ -138,7 +138,7 @@ export async function createPaidOrderFromIntent(tx, intent) {
   return order;
 }
 
-export async function markOrderPaid(orderId) {
+export async function markOrderPaid(orderId, paymentMethod) {
   return prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({ where: { id: orderId } });
     if (!order) {
@@ -146,13 +146,17 @@ export async function markOrderPaid(orderId) {
     }
 
     const alreadyPaid = order.paymentStatus === 'PAID';
+    const dataToUpdate = {
+      paymentStatus: 'PAID',
+      paidAt: order.paidAt || new Date()
+    };
+    if (paymentMethod) {
+      dataToUpdate.paymentMethod = paymentMethod;
+    }
+
     const updated = await tx.order.update({
       where: { id: orderId },
-      data: {
-        paymentStatus: 'PAID',
-        // do not auto-change status to PREPARING so staff can see new orders first
-        paidAt: order.paidAt || new Date()
-      },
+      data: dataToUpdate,
       include: { table: true, customer: true, items: true }
     });
 

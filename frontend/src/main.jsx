@@ -1144,7 +1144,7 @@ function BillDetailModal({ order, onClose }) {
               <div className="bill-row"><span>Ngày đặt:</span><b>{new Date(order.createdAt).toLocaleString('vi-VN')}</b></div>
               {order.completedAt && <div className="bill-row"><span>Hoàn thành:</span><b>{new Date(order.completedAt).toLocaleString('vi-VN')}</b></div>}
               {order.deliveredAt && <div className="bill-row"><span>Đã giao:</span><b>{new Date(order.deliveredAt).toLocaleString('vi-VN')}</b></div>}
-              {order.paidAt && <div className="bill-row"><span>Thanh toán:</span><b>{new Date(order.paidAt).toLocaleString('vi-VN')}</b></div>}
+              {order.paidAt && <div className="bill-row"><span>Thanh toán:</span><b>{new Date(order.paidAt).toLocaleString('vi-VN')} ({order.paymentMethod === 'CASH' ? 'Tiền mặt' : 'Chuyển khoản'})</b></div>}
             </div>
             <div className="bill-section">
               <h3>Danh sách món</h3>
@@ -1577,49 +1577,218 @@ function UnpaidOrders({ refreshToken, user }) {
   const [orders, setOrders] = useState([]);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [clickedButtons, setClickedButtons] = useState({});
+  const [payingOrder, setPayingOrder] = useState(null);
+  const [selectedIds, setSelectedIds] = useState({});
+  const [subTab, setSubTab] = useState('all'); // 'all' or 'by-table'
+
   const load = () => api('/api/orders').then((allOrders) => { setOrders(allOrders.filter((o) => o.paymentStatus !== 'PAID')); });
   useEffect(() => { load(); }, [refreshToken]);
   useRealtimeUpdates(['orders'], load);
 
-  async function markAsPaid(orderId) {
+  useEffect(() => {
+    const initial = {};
+    orders.forEach((o) => {
+      initial[o.id] = true;
+    });
+    setSelectedIds(initial);
+  }, [orders]);
+
+  async function confirmPayment(orderId, paymentMethod) {
     if (clickedButtons[orderId]) return;
     setClickedButtons((prev) => ({ ...prev, [orderId]: true }));
     try {
-      await api(`/api/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ paymentStatus: 'PAID' }) });
+      await api(`/api/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ paymentStatus: 'PAID', paymentMethod }) });
+      setPayingOrder(null);
       load();
     } catch (err) { setClickedButtons((prev) => ({ ...prev, [orderId]: false })); }
   }
 
+  async function mergeOrders(ids) {
+    if (ids.length < 2) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn gộp ${ids.length} hóa đơn này thành 1 hóa đơn tổng không?`)) return;
+    try {
+      await api('/api/orders/merge', {
+        method: 'POST',
+        body: JSON.stringify({ orderIds: ids })
+      });
+      load();
+    } catch (err) {
+      alert(err.message || 'Lỗi khi gộp hóa đơn');
+    }
+  }
+
   const selectedOrder = orders.find((o) => o.id === selectedOrderId);
+
+  // Group orders by table
+  const ordersByTable = useMemo(() => {
+    const groups = {};
+    orders.forEach((order) => {
+      const tid = order.tableId;
+      if (!groups[tid]) {
+        groups[tid] = {
+          table: order.table,
+          orders: []
+        };
+      }
+      groups[tid].orders.push(order);
+    });
+    return Object.values(groups).sort((a, b) => String(a.table?.name).localeCompare(String(b.table?.name)));
+  }, [orders]);
+
+  function toggleOrder(orderId) {
+    setSelectedIds(prev => ({
+      ...prev,
+      [orderId]: !prev[orderId]
+    }));
+  }
+
+  function toggleTableAll(tableOrders, allChecked) {
+    setSelectedIds(prev => {
+      const copy = { ...prev };
+      tableOrders.forEach(o => {
+        copy[o.id] = !allChecked;
+      });
+      return copy;
+    });
+  }
 
   return (
     <div>
-      <div className="section-head"><h2>Đơn chưa thanh toán</h2><span className="count">{orders.length} đơn</span></div>
+      <div className="section-head">
+        <h2>Đơn chưa thanh toán</h2>
+        <span className="count">{orders.length} đơn</span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
+        <button className={`btn ${subTab === 'all' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setSubTab('all')}>Tất cả hóa đơn</button>
+        <button className={`btn ${subTab === 'by-table' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setSubTab('by-table')}>Hóa đơn theo bàn</button>
+      </div>
+
       {orders.length === 0 && <div className="empty-state"><Banknote size={40} /><p>Tất cả đơn hàng đã được thanh toán.</p></div>}
-      <div className="orders-grid">
-        {orders.map((order) => (
-          <div className="order-card" key={order.id}>
-            <div className="order-card-header">
-              <div>
-                <h3>#{order.dailySequence} — {order.table?.name}</h3>
-                {order.createdAt && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{new Date(order.createdAt).toLocaleTimeString('vi-VN')} • {order.customer?.phone?.slice(-6)}</div>}
+
+      {orders.length > 0 && subTab === 'all' && (
+        <div className="orders-grid">
+          {orders.map((order) => (
+            <div className="order-card" key={order.id}>
+              <div className="order-card-header">
+                <div>
+                  <h3>#{order.dailySequence} — {order.table?.name}</h3>
+                  {order.createdAt && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{new Date(order.createdAt).toLocaleTimeString('vi-VN')} • {order.customer?.phone?.slice(-6)}</div>}
+                </div>
+                <span className="price">{money(order.subtotal)}</span>
               </div>
-              <span className="price">{money(order.subtotal)}</span>
+              <div className="order-badges"><StatusBadge text={order.status} /><StatusBadge text={order.paymentStatus} /></div>
+              <div className="order-items-list">
+                {order.items.map((item) => (<div className="order-item-row" key={item.id}><span>{item.quantity}× {item.name}</span><span>{money(item.price * item.quantity)}</span></div>))}
+              </div>
+              <div className="order-actions">
+                <button className="btn btn-ghost" onClick={() => setSelectedOrderId(order.id)}><Eye size={14} /> Chi tiết</button>
+                <button className="btn btn-primary" onClick={() => setPayingOrder(order)} disabled={clickedButtons[order.id]} style={{ opacity: clickedButtons[order.id] ? 0.5 : 1 }}>
+                  <Banknote size={14} /> Thanh toán
+                </button>
+              </div>
             </div>
-            <div className="order-badges"><StatusBadge text={order.status} /><StatusBadge text={order.paymentStatus} /></div>
-            <div className="order-items-list">
-              {order.items.map((item) => (<div className="order-item-row" key={item.id}><span>{item.quantity}× {item.name}</span><span>{money(item.price * item.quantity)}</span></div>))}
-            </div>
-            <div className="order-actions">
-              <button className="btn btn-ghost" onClick={() => setSelectedOrderId(order.id)}><Eye size={14} /> Chi tiết</button>
-              <button className="btn btn-primary" onClick={() => markAsPaid(order.id)} disabled={clickedButtons[order.id]} style={{ opacity: clickedButtons[order.id] ? 0.5 : 1 }}>
-                <Banknote size={14} /> {clickedButtons[order.id] ? 'Đã TT' : 'Thanh toán'}
+          ))}
+        </div>
+      )}
+
+      {orders.length > 0 && subTab === 'by-table' && (
+        <div>
+          {ordersByTable.map((group) => {
+            const tableOrders = group.orders;
+            const checkedOrders = tableOrders.filter(o => selectedIds[o.id]);
+            const totalOfChecked = checkedOrders.reduce((sum, o) => sum + o.subtotal, 0);
+            const allChecked = tableOrders.every(o => selectedIds[o.id]);
+
+            return (
+              <div className="table-group-card" key={group.table?.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 16, marginBottom: 16 }}>
+                <div className="table-group-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid var(--border)', paddingBottom: 10, marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {tableOrders.length > 1 && (
+                      <input type="checkbox" checked={allChecked} onChange={() => toggleTableAll(tableOrders, allChecked)} style={{ width: 18, height: 18, cursor: 'pointer' }} />
+                    )}
+                    <h3 style={{ margin: 0, fontSize: 18 }}>Bàn: {group.table?.name}</h3>
+                    <span className="count" style={{ fontSize: 13, background: 'var(--border)', padding: '2px 8px', borderRadius: 12 }}>{tableOrders.length} đơn</span>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {checkedOrders.length >= 2 && (
+                      <button className="btn btn-primary btn-sm" onClick={() => mergeOrders(checkedOrders.map(o => o.id))} style={{ background: 'var(--amber)', color: 'var(--amber-dark)' }}>
+                        Gộp {checkedOrders.length} đơn đã chọn ({money(totalOfChecked)})
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+                  {tableOrders.map((order) => {
+                    const isChecked = !!selectedIds[order.id];
+                    return (
+                      <div className="order-card" key={order.id} style={{ border: '1px solid var(--border)', padding: 12, borderRadius: 'var(--radius)', opacity: isChecked ? 1 : 0.6 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                          {tableOrders.length > 1 && (
+                            <input type="checkbox" checked={isChecked} onChange={() => toggleOrder(order.id)} style={{ width: 16, height: 16, marginTop: 3, cursor: 'pointer' }} />
+                          )}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                              <span>#{order.dailySequence}</span>
+                              <span>{money(order.subtotal)}</span>
+                            </div>
+                            <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+                              {new Date(order.createdAt).toLocaleTimeString('vi-VN')} • SĐT: {order.customer?.phone}
+                            </div>
+                            
+                            <div className="order-items-list" style={{ marginTop: 8, borderTop: '1px dashed var(--border)', paddingTop: 6, fontSize: 12 }}>
+                              {order.items.map((item) => (
+                                <div className="order-item-row" key={item.id} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--ink-2)' }}>
+                                  <span>{item.quantity}× {item.name}</span>
+                                  <span>{money(item.price * item.quantity)}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="order-actions" style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                              <button className="btn btn-ghost btn-sm" onClick={() => setSelectedOrderId(order.id)}><Eye size={12} /> Chi tiết</button>
+                              <button className="btn btn-primary btn-sm" onClick={() => setPayingOrder(order)} disabled={clickedButtons[order.id]} style={{ opacity: clickedButtons[order.id] ? 0.5 : 1 }}>
+                                <Banknote size={12} /> Thanh toán
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {selectedOrder && <BillDetailModal order={selectedOrder} onClose={() => setSelectedOrderId(null)} />}
+
+      {payingOrder && (
+        <div className="modal-backdrop">
+          <div className="modal" style={{ maxWidth: 400 }}>
+            <button className="modal-close-btn" type="button" aria-label="Đóng" onClick={() => setPayingOrder(null)}>✕</button>
+            <div className="modal-icon info"><Banknote size={24} /></div>
+            <h2 style={{ marginTop: 12 }}>Xác nhận thanh toán</h2>
+            <p style={{ fontSize: 14 }}>
+              Chọn phương thức thanh toán cho đơn <b>#{payingOrder.dailySequence} — {payingOrder.table?.name}</b>:<br />
+              Tổng cộng: <b style={{ color: 'var(--green)', fontSize: 16 }}>{money(payingOrder.subtotal)}</b>
+            </p>
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button className="btn btn-primary btn-full btn-lg" onClick={() => confirmPayment(payingOrder.id, 'CASH')} disabled={clickedButtons[payingOrder.id]}>
+                💵 Tiền mặt
               </button>
+              <button className="btn btn-full btn-lg" onClick={() => confirmPayment(payingOrder.id, 'BANK_TRANSFER')} disabled={clickedButtons[payingOrder.id]} style={{ backgroundColor: 'var(--blue)', color: 'white' }}>
+                🏦 Chuyển khoản
+              </button>
+              <button className="btn btn-ghost btn-full" onClick={() => setPayingOrder(null)}>Hủy</button>
             </div>
           </div>
-        ))}
-      </div>
-      {selectedOrder && <BillDetailModal order={selectedOrder} onClose={() => setSelectedOrderId(null)} />}
+        </div>
+      )}
     </div>
   );
 }
