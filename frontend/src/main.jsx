@@ -454,6 +454,37 @@ function PaymentResult() {
   );
 }
 
+function ConfirmModal({ isOpen, title, message, type = 'warning', confirmLabel = 'Đồng ý', cancelLabel = 'Hủy', onConfirm, onCancel }) {
+  if (!isOpen) return null;
+
+  let iconElement = <Info size={24} />;
+  if (type === 'success') iconElement = <Check size={24} />;
+  if (type === 'danger' || type === 'warning') iconElement = <Trash2 size={24} />;
+
+  return (
+    <div className="modal-backdrop" style={{ zIndex: 999 }}>
+      <div className="modal" style={{ maxWidth: 400 }}>
+        {onCancel && (
+          <button className="modal-close-btn" type="button" aria-label="Đóng" onClick={onCancel}>✕</button>
+        )}
+        <div className={`modal-icon ${type}`}>{iconElement}</div>
+        <h2 style={{ marginTop: 10 }}>{title}</h2>
+        <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.5, whiteSpace: 'pre-line', marginTop: 6 }}>{message}</p>
+        <div className="modal-actions" style={{ marginTop: 16 }}>
+          <button className="btn btn-primary btn-full btn-lg" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+          {onCancel && (
+            <button className="btn btn-ghost btn-full" onClick={onCancel}>
+              {cancelLabel}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════
 // BACK-OFFICE
 // ══════════════════════════════════════════════════════════
@@ -547,6 +578,39 @@ function DashboardShell({ user, onLogout, onUserChange }) {
   const [newOrderCount, setNewOrderCount] = useState(0);
   const noticeTimerRef = useRef(null);
   const bellAudioRef = useRef(null);
+
+  const [modalConfig, setModalConfig] = useState(null);
+
+  function showConfirm(config) {
+    return new Promise((resolve) => {
+      setModalConfig({
+        ...config,
+        onConfirm: () => {
+          setModalConfig(null);
+          resolve(true);
+        },
+        onCancel: () => {
+          setModalConfig(null);
+          resolve(false);
+        }
+      });
+    });
+  }
+
+  function showAlert(title, message, type = 'info') {
+    return new Promise((resolve) => {
+      setModalConfig({
+        title,
+        message,
+        type,
+        confirmLabel: 'Đóng',
+        onConfirm: () => {
+          setModalConfig(null);
+          resolve();
+        }
+      });
+    });
+  }
 
   // Play ringtone from the bundled WAV file, with Web Audio fallback
   function playBell() {
@@ -672,11 +736,11 @@ function DashboardShell({ user, onLogout, onUserChange }) {
           {tab === 'overview'    && <Overview refreshToken={refreshToken} />}
           {tab === 'orders'      && <Orders title="Bill đang làm" statuses={['NEW', 'PREPARING']} user={user} refreshToken={refreshToken} />}
           {tab === 'delivery'    && <Orders title="Bill chờ giao" statuses={['DELIVERING']} user={user} emptyText="Chưa có bill nào chờ giao." refreshToken={refreshToken} />}
-          {tab === 'unpaid'      && <UnpaidOrders refreshToken={refreshToken} user={user} />}
+          {tab === 'unpaid'      && <UnpaidOrders refreshToken={refreshToken} user={user} onConfirm={showConfirm} onAlert={showAlert} />}
           {tab === 'history'     && <OrderHistory user={user} refreshToken={refreshToken} />}
-          {tab === 'menu'        && <MenuManager refreshToken={refreshToken} />}
-          {tab === 'tables'      && <TableManager refreshToken={refreshToken} />}
-          {tab === 'accounts'    && <AccountManager currentUser={user} onCurrentUserChange={onUserChange} refreshToken={refreshToken} onLogout={onLogout} />}
+          {tab === 'menu'        && <MenuManager refreshToken={refreshToken} onConfirm={showConfirm} onAlert={showAlert} />}
+          {tab === 'tables'      && <TableManager refreshToken={refreshToken} onConfirm={showConfirm} onAlert={showAlert} />}
+          {tab === 'accounts'    && <AccountManager currentUser={user} onCurrentUserChange={onUserChange} refreshToken={refreshToken} onLogout={onLogout} onConfirm={showConfirm} onAlert={showAlert} />}
         </div>
       </div>
       {notice && (
@@ -706,6 +770,18 @@ function DashboardShell({ user, onLogout, onUserChange }) {
           <button className="mobile-nav-logout" type="button" onClick={onLogout}><LogOut size={18} /> Đăng xuất</button>
         </div>
       </div>
+      {modalConfig && (
+        <ConfirmModal
+          isOpen={true}
+          title={modalConfig.title}
+          message={modalConfig.message}
+          type={modalConfig.type}
+          confirmLabel={modalConfig.confirmLabel}
+          cancelLabel={modalConfig.cancelLabel}
+          onConfirm={modalConfig.onConfirm}
+          onCancel={modalConfig.onCancel}
+        />
+      )}
     </div>
   );
 }
@@ -1249,7 +1325,7 @@ function OrderHistory({ user, refreshToken }) {
   );
 }
 
-function MenuManager({ refreshToken }) {
+function MenuManager({ refreshToken, onConfirm, onAlert }) {
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [menuSearch, setMenuSearch] = useState('');
@@ -1294,7 +1370,7 @@ function MenuManager({ refreshToken }) {
     const res = await fetch(`${API_BASE}/api/admin/upload-menu-image`, { method: 'POST', body: formData, headers: { Authorization: token ? `Bearer ${token}` : '' } });
     if (!res.ok) {
       const txt = await res.text();
-      alert('Upload thất bại: ' + txt);
+      onAlert('Upload thất bại', txt, 'danger');
       return;
     }
     const data = await res.json();
@@ -1347,7 +1423,7 @@ function MenuManager({ refreshToken }) {
     formData.append('image', file);
     const token = localStorage.getItem('vanmerchant_token');
     const res = await fetch(`${API_BASE}/api/admin/upload-menu-image`, { method: 'POST', body: formData, headers: { Authorization: token ? `Bearer ${token}` : '' } });
-    if (!res.ok) { alert('Upload thất bại'); return; }
+    if (!res.ok) { onAlert('Upload thất bại', 'Không thể upload ảnh món ăn, vui lòng thử lại.', 'danger'); return; }
     const data = await res.json();
     setEditingForm((c) => ({ ...c, imageUrl: data.imageUrl }));
     setEditUploadFilename(data.filename || null);
@@ -1361,7 +1437,14 @@ function MenuManager({ refreshToken }) {
   }
 
   async function removeItem(itemId) {
-    if (!window.confirm('Xóa vĩnh viễn món này?')) return;
+    const ok = await onConfirm({
+      title: 'Xóa món ăn',
+      message: 'Bạn có chắc chắn muốn xóa vĩnh viễn món này không?',
+      type: 'danger',
+      confirmLabel: 'Xóa vĩnh viễn',
+      cancelLabel: 'Hủy'
+    });
+    if (!ok) return;
     await api(`/api/admin/menu-items/${itemId}`, { method: 'DELETE' });
     if (editingId === itemId) { setEditingId(null); setEditingForm(null); }
     loadItems();
@@ -1415,7 +1498,14 @@ function MenuManager({ refreshToken }) {
   });
 
   async function removeCategory(categoryId, categoryName) {
-    if (!window.confirm(`Xóa phân loại "${categoryName}"? Các món thuộc loại này sẽ được chuyển về chưa phân loại.`)) return;
+    const ok = await onConfirm({
+      title: 'Xóa phân loại',
+      message: `Bạn có chắc chắn muốn xóa phân loại "${categoryName}"? Các món thuộc loại này sẽ được chuyển về trạng thái chưa phân loại.`,
+      type: 'danger',
+      confirmLabel: 'Xóa phân loại',
+      cancelLabel: 'Hủy'
+    });
+    if (!ok) return;
     await api(`/api/admin/categories/${categoryId}`, { method: 'DELETE' });
     if (editingCategoryId === categoryId) {
       setEditingCategoryId(null);
@@ -1606,7 +1696,7 @@ function MenuManager({ refreshToken }) {
   );
 }
 
-function UnpaidOrders({ refreshToken, user }) {
+function UnpaidOrders({ refreshToken, user, onConfirm, onAlert }) {
   const [orders, setOrders] = useState([]);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [clickedButtons, setClickedButtons] = useState({});
@@ -1638,7 +1728,14 @@ function UnpaidOrders({ refreshToken, user }) {
 
   async function mergeOrders(ids) {
     if (ids.length < 2) return;
-    if (!window.confirm(`Bạn có chắc chắn muốn gộp ${ids.length} hóa đơn này thành 1 hóa đơn tổng không?`)) return;
+    const ok = await onConfirm({
+      title: 'Gộp hóa đơn',
+      message: `Bạn có chắc chắn muốn gộp ${ids.length} hóa đơn này thành 1 hóa đơn tổng không?`,
+      type: 'warning',
+      confirmLabel: 'Gộp hóa đơn',
+      cancelLabel: 'Hủy'
+    });
+    if (!ok) return;
     try {
       await api('/api/orders/merge', {
         method: 'POST',
@@ -1646,13 +1743,14 @@ function UnpaidOrders({ refreshToken, user }) {
       });
       load();
     } catch (err) {
-      alert(err.message || 'Lỗi khi gộp hóa đơn');
+      onAlert('Lỗi gộp hóa đơn', err.message || 'Không thể gộp hóa đơn.', 'danger');
     }
   }
 
   const selectedOrder = orders.find((o) => o.id === selectedOrderId);
 
   const [selectedTableFilter, setSelectedTableFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const tablesWithUnpaid = useMemo(() => {
     const list = [];
@@ -1672,15 +1770,31 @@ function UnpaidOrders({ refreshToken, user }) {
     }
   }, [tablesWithUnpaid, selectedTableFilter]);
 
+  const searchedOrders = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    return orders.filter((order) => {
+      if (!query) return true;
+      const haystack = [
+        order.dailySequence,
+        order.table?.name || '',
+        order.customer?.phone || '',
+        order.items?.map((item) => item.name).join(' ') || ''
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [orders, searchTerm]);
+
   const filteredOrders = useMemo(() => {
-    if (selectedTableFilter === 'all') return orders;
-    return orders.filter(o => o.tableId === selectedTableFilter);
-  }, [orders, selectedTableFilter]);
+    if (selectedTableFilter === 'all') return searchedOrders;
+    return searchedOrders.filter(o => o.tableId === selectedTableFilter);
+  }, [searchedOrders, selectedTableFilter]);
 
   // Group orders by table
   const ordersByTable = useMemo(() => {
     const groups = {};
-    orders.forEach((order) => {
+    searchedOrders.forEach((order) => {
       const tid = order.tableId;
       if (!groups[tid]) {
         groups[tid] = {
@@ -1691,7 +1805,7 @@ function UnpaidOrders({ refreshToken, user }) {
       groups[tid].orders.push(order);
     });
     return Object.values(groups).sort((a, b) => String(a.table?.name).localeCompare(String(b.table?.name)));
-  }, [orders]);
+  }, [searchedOrders]);
 
   const filteredOrdersByTable = useMemo(() => {
     if (selectedTableFilter === 'all') return ordersByTable;
@@ -1730,40 +1844,53 @@ function UnpaidOrders({ refreshToken, user }) {
         <span className="count">{orders.length} đơn</span>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', justifyContent: 'space-between' }}>
-        <div className="sub-tab-bar" style={{ marginBottom: 0 }}>
-          <button className={`sub-tab-btn ${subTab === 'all' ? 'active' : ''}`} onClick={() => setSubTab('all')}>Tất cả hóa đơn</button>
-          <button className={`sub-tab-btn ${subTab === 'by-table' ? 'active' : ''}`} onClick={() => setSubTab('by-table')}>Hóa đơn theo bàn</button>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12, marginBottom: 20 }}>
+        <div className="menu-search-box field-group" style={{ margin: 0 }}>
+          <Search size={16} />
+          <input
+            className="field"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Tìm theo bàn, SĐT, mã đơn..."
+            type="search"
+          />
         </div>
         
-        {tablesWithUnpaid.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-2)' }}>Lọc bàn:</span>
-            <select
-              className="field"
-              value={selectedTableFilter}
-              onChange={(e) => setSelectedTableFilter(e.target.value)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 'var(--radius-s)',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'var(--ink)',
-                width: 'auto',
-                minWidth: 140,
-                cursor: 'pointer',
-                height: 38,
-                fontSize: 13,
-                fontWeight: 600
-              }}
-            >
-              <option value="all">🔍 Tất cả bàn</option>
-              {tablesWithUnpaid.map((t) => (
-                <option key={t.id} value={t.id}>🪑 {t.name}</option>
-              ))}
-            </select>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <div className="sub-tab-bar" style={{ marginBottom: 0, flex: 1, maxWidth: 'none' }}>
+            <button className={`sub-tab-btn ${subTab === 'all' ? 'active' : ''}`} onClick={() => setSubTab('all')}>Tất cả hóa đơn</button>
+            <button className={`sub-tab-btn ${subTab === 'by-table' ? 'active' : ''}`} onClick={() => setSubTab('by-table')}>Hóa đơn theo bàn</button>
           </div>
-        )}
+          
+          {tablesWithUnpaid.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-2)' }}>Lọc bàn:</span>
+              <select
+                className="field"
+                value={selectedTableFilter}
+                onChange={(e) => setSelectedTableFilter(e.target.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 'var(--radius-s)',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface)',
+                  color: 'var(--ink)',
+                  width: 'auto',
+                  minWidth: 120,
+                  cursor: 'pointer',
+                  height: 38,
+                  fontSize: 13,
+                  fontWeight: 600
+                }}
+              >
+                <option value="all">🔍 Tất cả bàn</option>
+                {tablesWithUnpaid.map((t) => (
+                  <option key={t.id} value={t.id}>🪑 {t.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {orders.length === 0 && <div className="empty-state"><Banknote size={40} /><p>Tất cả đơn hàng đã được thanh toán.</p></div>}
@@ -1895,7 +2022,7 @@ function UnpaidOrders({ refreshToken, user }) {
   );
 }
 
-function TableManager({ refreshToken }) {
+function TableManager({ refreshToken, onConfirm, onAlert }) {
   const [items, setItems] = useState([]);
   const [form, setForm]   = useState({ name: '', qrCode: '', seats: 4 });
   const [editingId, setEditingId] = useState(null);
@@ -1921,7 +2048,14 @@ function TableManager({ refreshToken }) {
   }
 
   async function removeItem(itemId) {
-    if (!window.confirm('Ẩn bàn này?')) return;
+    const ok = await onConfirm({
+      title: 'Ẩn bàn',
+      message: 'Bạn có chắc chắn muốn ẩn bàn này không?',
+      type: 'danger',
+      confirmLabel: 'Ẩn bàn',
+      cancelLabel: 'Hủy'
+    });
+    if (!ok) return;
     await api(`/api/admin/tables/${itemId}`, { method: 'DELETE' });
     if (editingId === itemId) { setEditingId(null); setEditingForm(null); }
     load();
@@ -1972,12 +2106,12 @@ function TableManager({ refreshToken }) {
   );
 }
 
-function AccountManager({ currentUser, onCurrentUserChange, refreshToken, onLogout }) {
+function AccountManager({ currentUser, onCurrentUserChange, refreshToken, onLogout, onConfirm, onAlert }) {
   const [users, setUsers]   = useState([]);
   const [error, setError]   = useState('');
   const [form, setForm]     = useState({ name: '', phone: '', role: currentUser.role === 'ADMIN' ? 'OWNER' : 'STAFF' });
   const isAdmin = currentUser.role === 'ADMIN';
-  const isOwner = currentUser.role === 'OWNER';
+  const [isOwner, setIsOwner] = useState(currentUser.role === 'OWNER');
   const roleOptions = isAdmin ? ['OWNER', 'STAFF'] : ['STAFF'];
 
   const load = () => { setError(''); return api('/api/admin/users').then(setUsers).catch((err) => setError(err.message)); };
@@ -2010,14 +2144,14 @@ function AccountManager({ currentUser, onCurrentUserChange, refreshToken, onLogo
       {error && <p className="notice notice-err" style={{ marginBottom: 16 }}>{error}</p>}
       <div className="account-grid">
         {users.map((user) => (
-          <UserCard key={user.id} user={user} currentUser={currentUser} isAdmin={isAdmin} isOwner={isOwner} roleOptions={roleOptions} onSaved={load} onDeleted={load} onCurrentUserChange={onCurrentUserChange} onLogout={onLogout} />
+          <UserCard key={user.id} user={user} currentUser={currentUser} isAdmin={isAdmin} isOwner={isOwner} roleOptions={roleOptions} onSaved={load} onDeleted={load} onCurrentUserChange={onCurrentUserChange} onLogout={onLogout} onConfirm={onConfirm} onAlert={onAlert} />
         ))}
       </div>
     </div>
   );
 }
 
-function UserCard({ user, currentUser, isAdmin, isOwner, roleOptions, onSaved, onDeleted, onCurrentUserChange, onLogout }) {
+function UserCard({ user, currentUser, isAdmin, isOwner, roleOptions, onSaved, onDeleted, onCurrentUserChange, onLogout, onConfirm, onAlert }) {
   const canEdit = isAdmin || (isOwner && user.role === 'STAFF');
   const canDelete = canEdit;
   const canResetPin = isAdmin;
@@ -2031,13 +2165,27 @@ function UserCard({ user, currentUser, isAdmin, isOwner, roleOptions, onSaved, o
   }
 
   async function remove() {
-    if (!window.confirm(`Xóa tài khoản ${user.name}?`)) return;
+    const ok = await onConfirm({
+      title: 'Xóa tài khoản',
+      message: `Bạn có chắc chắn muốn xóa tài khoản "${user.name}"?`,
+      type: 'danger',
+      confirmLabel: 'Xóa',
+      cancelLabel: 'Hủy'
+    });
+    if (!ok) return;
     try { await api(`/api/admin/users/${user.id}`, { method: 'DELETE' }); await onDeleted(); }
     catch (err) { setError(err.message); }
   }
 
   async function resetPin() {
-    if (!window.confirm(`Reset PIN cho ${user.name}?`)) return;
+    const ok = await onConfirm({
+      title: 'Reset mã PIN',
+      message: `Bạn có chắc chắn muốn đặt lại mã PIN cho tài khoản "${user.name}"?`,
+      type: 'warning',
+      confirmLabel: 'Reset PIN',
+      cancelLabel: 'Hủy'
+    });
+    if (!ok) return;
     try { await api(`/api/admin/users/${user.id}/reset-pin`, { method: 'PATCH' }); setError(''); await onSaved(); }
     catch (err) { setError(err.message); }
   }

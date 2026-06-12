@@ -877,6 +877,7 @@ select.field {
 .modal-icon.success { background: var(--green-light); color: var(--green); }
 .modal-icon.info    { background: var(--blue-light);  color: var(--blue); }
 .modal-icon.warning { background: var(--amber-light); color: var(--amber); }
+.modal-icon.danger  { background: var(--red-light);   color: var(--red); }
 .modal h2 { font-size: 1.25rem; }
 .modal p  { font-size: 14px; color: var(--ink-2); line-height: 1.6; }
 .modal-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
