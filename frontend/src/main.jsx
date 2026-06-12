@@ -380,7 +380,10 @@ function CustomerOrder({ qrCode }) {
             <h2>Xác nhận gọi món</h2>
             <p>Đơn hàng của bạn sẽ được chuyển đến nhà bếp để chế biến. Bạn đồng ý gửi yêu cầu chứ?</p>
             <div className="modal-actions">
-              <button className="btn btn-primary btn-full btn-lg" onClick={confirmOrder}>Gửi yêu cầu</button>
+              <button className="btn btn-primary btn-full btn-lg" onClick={confirmOrder}>Gọi món ngay</button>
+              {/* Tạm ẩn hình thức chuyển khoản trực tuyến
+              <button className="btn btn-ghost btn-full btn-lg" disabled>🏦 Chuyển khoản (Tạm tắt)</button>
+              */}
               <button className="btn btn-ghost btn-full btn-lg" onClick={() => { setPaymentChoiceOpen(false); setDraftOrder(null); }}>Hủy</button>
             </div>
           </div>
