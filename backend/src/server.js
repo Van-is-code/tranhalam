@@ -12,6 +12,7 @@ import userRoutes from './routes/users.js';
 import orderRoutes from './routes/orders.js';
 import { requireAuth } from './middleware/auth.js';
 import { sseHandler } from './services/realtime.js';
+import { importSeedData } from './services/seed-import.js';
 import path from 'path';
 
 const app = express();
@@ -39,7 +40,8 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(helmet());
+// Cho phép ảnh do backend phục vụ (menu_image) hiển thị trên origin khác của frontend
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 
@@ -63,6 +65,12 @@ app.use((error, req, res, next) => {
   return res.status(500).json({ message: error.message || 'Server error' });
 });
 
-app.listen(config.port, () => {
-  console.log(`VanMerchant API listening on http://localhost:${config.port}`);
-});
+// Import dữ liệu khởi tạo (account + menu) từ data/seed-data.json rồi mới nhận request.
+// Lỗi import không làm sập server.
+importSeedData()
+  .catch((error) => console.error('[seed] Import khởi tạo lỗi:', error))
+  .finally(() => {
+    app.listen(config.port, () => {
+      console.log(`VanMerchant API listening on http://localhost:${config.port}`);
+    });
+  });

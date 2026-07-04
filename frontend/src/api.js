@@ -1,5 +1,14 @@
 export const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
 
+// Ảnh upload được lưu ở backend và trả về đường dẫn tương đối ("/public/menu_image/x.jpg").
+// Frontend và backend thường khác origin, nên cần ghép với API_BASE để ảnh hiển thị được.
+export function resolveImageUrl(url) {
+  if (!url) return '';
+  if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:')) return url;
+  const p = url.startsWith('/') ? url : `/${url}`;
+  return `${API_BASE}${p}`;
+}
+
 export function getToken() {
   return localStorage.getItem('vanmerchant_token');
 }

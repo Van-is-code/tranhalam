@@ -51,7 +51,7 @@ import {
   Legend,
   Sector,
 } from 'recharts';
-import { API_BASE, api, getUser, logout, money, setSession, updateStoredUser } from './api.js';
+import { API_BASE, api, getUser, logout, money, resolveImageUrl, setSession, updateStoredUser } from './api.js';
 import './styles.css';
 
 // ── Router ────────────────────────────────────────────────
@@ -287,12 +287,20 @@ function CustomerOrder({ qrCode }) {
             ) : (
               filteredCategories.map((cat) => (
                 <div className="category-section" key={cat.id}>
-                  <h2>{cat.name}</h2>
+                  <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {cat.name}
+                    {(cat.featured || cat.isFeatured) && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '2px 8px', borderRadius: 999 }}>★ Nổi bật</span>
+                    )}
+                  </h2>
                   {cat.items.map((item) => (
                     <div className={`menu-item-row ${item.hidden ? 'sold-out' : ''}`} key={item.id} style={{ marginBottom: 8 }}>
-                      <img src={item.imageUrl || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=200&q=60'} alt={item.name} />
+                      <img src={item.imageUrl ? resolveImageUrl(item.imageUrl) : 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=200&q=60'} alt={item.name} />
                       <div className="item-body">
-                        <div className="item-name">{item.name}</div>
+                        <div className="item-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {item.name}
+                          {item.featured && <span style={{ fontSize: 10, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '1px 6px', borderRadius: 999 }}>★</span>}
+                        </div>
                         {item.description && <div className="item-desc">{item.description}</div>}
                         <div className="item-price">{money(item.price)}</div>
                       </div>
@@ -1351,6 +1359,28 @@ function MenuManager({ refreshToken, onConfirm, onAlert }) {
 
   const [uploadFilename, setUploadFilename] = useState(null);
 
+  // Gallery: chọn lại ảnh đã tải lên (thư mục public/menu_image)
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [galleryTarget, setGalleryTarget] = useState('add'); // 'add' | 'edit'
+
+  async function openGallery(target) {
+    setGalleryTarget(target);
+    try {
+      const imgs = await api('/api/admin/menu-images');
+      setGalleryImages(imgs);
+      setGalleryOpen(true);
+    } catch {
+      onAlert('Lỗi', 'Không tải được danh sách ảnh đã tải', 'danger');
+    }
+  }
+
+  function pickGalleryImage(url) {
+    if (galleryTarget === 'edit') setEditingForm((c) => ({ ...c, imageUrl: url }));
+    else setForm((c) => ({ ...c, imageUrl: url }));
+    setGalleryOpen(false);
+  }
+
   async function chooseImage(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1631,10 +1661,13 @@ function MenuManager({ refreshToken, onConfirm, onAlert }) {
       <button className="btn btn-primary" onClick={handleToggleAddForm} style={{ marginBottom: 16 }}><Plus size={16} /> {showAddForm ? 'Ẩn' : 'Thêm mới'}</button>
       {showAddForm && (
         <form className="menu-add-form" onSubmit={submit}>
-          <label className="image-picker">
-            {form.imageUrl ? <img src={form.imageUrl} alt="" /> : <><ImagePlus size={28} /><span>Thêm ảnh</span></>}
-            <input type="file" accept="image/*" onChange={chooseImage} />
-          </label>
+          <div>
+            <label className="image-picker">
+              {form.imageUrl ? <img src={resolveImageUrl(form.imageUrl)} alt="" /> : <><ImagePlus size={28} /><span>Thêm ảnh</span></>}
+              <input type="file" accept="image/*" onChange={chooseImage} />
+            </label>
+            <button className="btn btn-ghost" type="button" style={{ marginTop: 6, width: '100%' }} onClick={() => openGallery('add')}><ImagePlus size={14} /> Ảnh đã tải</button>
+          </div>
           <div className="form-fields">
             <input className="field" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Tên món" required />
             <input className="field" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="Giá bán (VND)" type="number" required />
@@ -1647,12 +1680,45 @@ function MenuManager({ refreshToken, onConfirm, onAlert }) {
           </div>
         </form>
       )}
+      {galleryOpen && (
+        <div
+          onClick={() => setGalleryOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, padding: 16, width: 'min(720px, 100%)', maxHeight: '80vh', overflow: 'auto' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <b>Ảnh đã tải ({galleryImages.length})</b>
+              <button className="btn btn-ghost" type="button" onClick={() => setGalleryOpen(false)}>Đóng</button>
+            </div>
+            {galleryImages.length === 0 ? (
+              <p className="muted">Chưa có ảnh nào. Hãy tải ảnh lên trước.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
+                {galleryImages.map((img) => (
+                  <button
+                    key={img.filename}
+                    type="button"
+                    onClick={() => pickGalleryImage(img.imageUrl)}
+                    title={img.filename}
+                    style={{ padding: 0, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', cursor: 'pointer', background: '#fff' }}
+                  >
+                    <img src={resolveImageUrl(img.imageUrl)} alt={img.filename} style={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <div className="menu-grid">
         {filteredItems.map((item) => {
           const category = categories.find((c) => c.id === item.categoryId);
           return (
             <div className={`menu-admin-card ${item.hidden ? 'is-muted' : ''}`} key={item.id}>
-              <img src={item.imageUrl || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=300&q=60'} alt={item.name} />
+              <img src={item.imageUrl ? resolveImageUrl(item.imageUrl) : 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=300&q=60'} alt={item.name} />
               {editingId === item.id && editingForm ? (
                 <div className="card-edit-panel">
                   <input className="field" value={editingForm.name} onChange={(e) => setEditingForm({ ...editingForm, name: e.target.value })} placeholder="Tên món" />
@@ -1660,6 +1726,7 @@ function MenuManager({ refreshToken, onConfirm, onAlert }) {
                   <textarea className="field" value={editingForm.description} onChange={(e) => setEditingForm({ ...editingForm, description: e.target.value })} placeholder="Mô tả" />
                   <input className="field" value={editingForm.imageUrl} onChange={(e) => setEditingForm({ ...editingForm, imageUrl: e.target.value })} placeholder="URL ảnh" />
                   <input type="file" accept="image/*" onChange={chooseEditImage} />
+                  <button className="btn btn-ghost" type="button" onClick={() => openGallery('edit')}><ImagePlus size={14} /> Ảnh đã tải</button>
                   <select className="field" value={editingForm.categoryId} onChange={(e) => setEditingForm({ ...editingForm, categoryId: e.target.value })}>
                     <option value="">Chọn phân loại</option>
                     {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}

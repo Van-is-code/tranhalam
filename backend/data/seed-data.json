@@ -1,0 +1,207 @@
+{
+  "accounts": [
+    {
+      "name": "Admin",
+      "phone": "0862215231",
+      "role": "ADMIN",
+      "pin": "000000"
+    },
+    {
+      "name": "Chủ quán",
+      "phone": "0900000001",
+      "role": "OWNER",
+      "pin": "111111"
+    },
+    {
+      "name": "Nhân viên",
+      "phone": "0900000002",
+      "role": "STAFF",
+      "pin": "222222"
+    }
+  ],
+  "categories": [
+    {
+      "id": "cat-tra-trai-cay",
+      "name": "Trà trái cây",
+      "sortOrder": 1,
+      "featured": true
+    },
+    {
+      "id": "cat-nuoc-ep",
+      "name": "Nước ép",
+      "sortOrder": 2
+    },
+    {
+      "id": "cat-matcha",
+      "name": "Matcha",
+      "sortOrder": 3
+    },
+    {
+      "id": "cat-ca-phe",
+      "name": "Cà phê",
+      "sortOrder": 4
+    },
+    {
+      "id": "cat-khac",
+      "name": "Khác",
+      "sortOrder": 5
+    }
+  ],
+  "menuItems": [
+    {
+      "id": "menu-tra-chanh",
+      "name": "Trà chanh",
+      "price": 10000,
+      "categoryId": "cat-tra-trai-cay",
+      "image": "Trà chanh.png"
+    },
+    {
+      "id": "menu-tra-tac",
+      "name": "Trà tắc",
+      "price": 10000,
+      "categoryId": "cat-tra-trai-cay",
+      "image": "Trà tắc.png"
+    },
+    {
+      "id": "menu-tra-dao-cam-sa",
+      "name": "Trà đào cam sả",
+      "price": 25000,
+      "categoryId": "cat-tra-trai-cay",
+      "featured": true,
+      "image": "Trà đào cam sả.png"
+    },
+    {
+      "id": "menu-tra-xoai-chanh-leo",
+      "name": "Trà xoài chanh leo",
+      "price": 25000,
+      "categoryId": "cat-tra-trai-cay",
+      "image": "Trà xoài chanh leo.png"
+    },
+    {
+      "id": "menu-tra-hoa-qua-nhiet-doi",
+      "name": "Trà hoa quả nhiệt đới",
+      "price": 25000,
+      "categoryId": "cat-tra-trai-cay",
+      "image": "Trà hoa quả nhiệt đới.png"
+    },
+    {
+      "id": "menu-tra-bi-dao-hat-chia",
+      "name": "Trà bí đao hạt chia",
+      "price": 15000,
+      "categoryId": "cat-tra-trai-cay",
+      "image": "Trà bí đao hạt chia.png"
+    },
+    {
+      "id": "menu-nuoc-me-da",
+      "name": "Nước me đá",
+      "price": 25000,
+      "categoryId": "cat-tra-trai-cay",
+      "image": "Nước me đá.png"
+    },
+    {
+      "id": "menu-nuoc-ep-cam",
+      "name": "Nước ép cam",
+      "price": 25000,
+      "categoryId": "cat-nuoc-ep",
+      "image": "Nước ép cam.png"
+    },
+    {
+      "id": "menu-nuoc-ep-dua",
+      "name": "Nước ép dứa",
+      "price": 25000,
+      "categoryId": "cat-nuoc-ep",
+      "image": "nước ép dứa.png"
+    },
+    {
+      "id": "menu-nuoc-ep-dua-hau",
+      "name": "Nước ép dưa hấu",
+      "price": 25000,
+      "categoryId": "cat-nuoc-ep",
+      "image": "Nước ép dưa hấu.png"
+    },
+    {
+      "id": "menu-nuoc-ep-luu",
+      "name": "Nước ép lựu",
+      "price": 30000,
+      "categoryId": "cat-nuoc-ep",
+      "image": "Nước ép lựu.png"
+    },
+    {
+      "id": "menu-matcha-latte",
+      "name": "Matcha latte",
+      "price": 25000,
+      "categoryId": "cat-matcha",
+      "image": "matcha latte.png"
+    },
+    {
+      "id": "menu-matcha-kem-cheese",
+      "name": "Matcha kem cheese",
+      "price": 30000,
+      "categoryId": "cat-matcha",
+      "image": "Matcha kem cheese.png"
+    },
+    {
+      "id": "menu-matcha-latte-xoai",
+      "name": "Matcha latte xoài",
+      "price": 30000,
+      "categoryId": "cat-matcha",
+      "image": "matcha latte xoài.png"
+    },
+    {
+      "id": "menu-ca-phe-den",
+      "name": "Cà phê đen",
+      "price": 20000,
+      "categoryId": "cat-ca-phe",
+      "image": "cà phê đen.png"
+    },
+    {
+      "id": "menu-ca-phe-sua",
+      "name": "Cà phê sữa",
+      "price": 25000,
+      "categoryId": "cat-ca-phe",
+      "image": "cà phê sữa.png"
+    },
+    {
+      "id": "menu-bac-xiu",
+      "name": "Bạc xỉu",
+      "price": 25000,
+      "categoryId": "cat-ca-phe",
+      "image": "Bạc xỉu.png"
+    },
+    {
+      "id": "menu-ca-phe-muoi",
+      "name": "Cà phê muối",
+      "price": 30000,
+      "categoryId": "cat-ca-phe",
+      "image": "Cà phê muối.png"
+    },
+    {
+      "id": "menu-cacao-sua",
+      "name": "Cacao sữa",
+      "price": 25000,
+      "categoryId": "cat-ca-phe",
+      "image": "Cacao sữa.png"
+    },
+    {
+      "id": "menu-sua-chua-danh-da",
+      "name": "Sữa chua đánh đá",
+      "price": 25000,
+      "categoryId": "cat-khac",
+      "image": "Sữa chua đánh đá.png"
+    },
+    {
+      "id": "menu-quat-lac-sua",
+      "name": "Quất lắc sữa",
+      "price": 15000,
+      "categoryId": "cat-khac",
+      "image": "Quất lắc sữa.png"
+    },
+    {
+      "id": "menu-sua-chua-hoa-qua",
+      "name": "Sữa chua hoa quả",
+      "price": 30000,
+      "categoryId": "cat-khac",
+      "image": "Sữa chua hoa quả.png"
+    }
+  ]
+}

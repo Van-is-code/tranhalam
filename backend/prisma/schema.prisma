@@ -57,6 +57,7 @@ model Category {
   id        String     @id @default(cuid())
   name      String
   sortOrder Int        @default(0)
+  featured  Boolean    @default(false)
   items     MenuItem[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -70,6 +71,7 @@ model MenuItem {
   imageUrl    String?
   active      Boolean      @default(true)
   hidden      Boolean      @default(false)
+  featured    Boolean      @default(false)
   categoryId  String?
   category    Category?    @relation(fields: [categoryId], references: [id])
   recipes     RecipeItem[]

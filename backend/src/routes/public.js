@@ -129,12 +129,22 @@ router.get('/tables/:qrCode', async (req, res, next) => {
       include: {
         items: {
           where: { active: true },
-          orderBy: { name: 'asc' }
+          // Món nổi bật hiện lên đầu trong danh mục
+          orderBy: [{ featured: 'desc' }, { name: 'asc' }]
         }
       }
     });
 
-    return res.json({ table, categories });
+    // Danh mục nổi bật (được đánh dấu featured, hoặc chứa món nổi bật) hiện lên đầu giao diện order
+    const sorted = categories
+      .map((cat) => ({ ...cat, isFeatured: cat.featured || cat.items.some((it) => it.featured) }))
+      .sort((a, b) => {
+        if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+        return a.name.localeCompare(b.name);
+      });
+
+    return res.json({ table, categories: sorted });
   } catch (error) {
     return next(error);
   }

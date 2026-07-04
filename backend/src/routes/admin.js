@@ -16,20 +16,42 @@ router.use(requireRole('OWNER', 'ADMIN'));
 const MENU_IMAGE_DIR = path.join(process.cwd(), 'public', 'menu_image');
 
 const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    try {
-      await fs.mkdir(MENU_IMAGE_DIR, { recursive: true });
-      cb(null, MENU_IMAGE_DIR);
-    } catch (err) {
-      cb(err);
-    }
+  destination: (req, file, cb) => {
+    fs.mkdir(MENU_IMAGE_DIR, { recursive: true })
+      .then(() => cb(null, MENU_IMAGE_DIR))
+      .catch((err) => cb(err));
   },
   filename: (req, file, cb) => {
-    const safe = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '-');
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2,8)}-${safe}`);
+    const safe = (file.originalname || 'image').replace(/[^a-zA-Z0-9.\-_]/g, '-');
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    if (/^image\//i.test(file.mimetype)) return cb(null, true);
+    return cb(new Error('INVALID_FILE_TYPE'));
+  }
+});
+
+// Bọc multer để trả lỗi JSON rõ ràng thay vì 500 khó hiểu
+function uploadMenuImage(req, res, next) {
+  upload.single('image')(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ message: 'Ảnh quá lớn (tối đa 10MB)' });
+      }
+      return res.status(400).json({ message: `Lỗi tải ảnh: ${err.message}` });
+    }
+    if (err.message === 'INVALID_FILE_TYPE') {
+      return res.status(400).json({ message: 'Chỉ chấp nhận file ảnh (jpg, png, webp...)' });
+    }
+    return next(err);
+  });
+}
 
 function isLocalMenuImage(url) {
   if (!url) return false;
@@ -50,11 +72,35 @@ async function unlinkIfLocal(url) {
 }
 
 // Upload a menu image. Expects multipart/form-data with field `image`.
-router.post('/upload-menu-image', upload.single('image'), async (req, res, next) => {
+router.post('/upload-menu-image', uploadMenuImage, async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
     const imageUrl = `/public/menu_image/${req.file.filename}`;
     return res.status(201).json({ imageUrl, filename: req.file.filename });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// List uploaded menu images (newest first) so they can be reused / referenced in seed-data.json
+router.get('/menu-images', async (req, res, next) => {
+  try {
+    await fs.mkdir(MENU_IMAGE_DIR, { recursive: true });
+    const entries = await fs.readdir(MENU_IMAGE_DIR, { withFileTypes: true });
+    const images = [];
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      if (!/\.(png|jpe?g|gif|webp|bmp|svg|avif)$/i.test(entry.name)) continue;
+      const stat = await fs.stat(path.join(MENU_IMAGE_DIR, entry.name));
+      images.push({
+        filename: entry.name,
+        imageUrl: `/public/menu_image/${entry.name}`,
+        size: stat.size,
+        modifiedAt: stat.mtime
+      });
+    }
+    images.sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
+    return res.json(images);
   } catch (error) {
     return next(error);
   }
@@ -285,7 +331,8 @@ router.post('/categories', async (req, res, next) => {
   try {
     const data = z.object({
       name: z.string().min(1),
-      sortOrder: z.number().int().default(0)
+      sortOrder: z.number().int().default(0),
+      featured: z.boolean().default(false)
     }).parse(req.body);
 
     const category = await prisma.category.create({ data });
@@ -300,7 +347,8 @@ router.put('/categories/:id', async (req, res, next) => {
   try {
     const data = z.object({
       name: z.string().min(1),
-      sortOrder: z.number().int().default(0)
+      sortOrder: z.number().int().default(0),
+      featured: z.boolean().default(false)
     }).parse(req.body);
 
     const category = await prisma.category.update({
@@ -353,6 +401,7 @@ router.post('/menu-items', async (req, res, next) => {
         price: z.number().int().min(0),
         imageUrl: z.string().optional(),
         active: z.boolean().default(true),
+        featured: z.boolean().default(false),
         categoryId: z.string().optional().nullable()
       })
       .parse(req.body);
