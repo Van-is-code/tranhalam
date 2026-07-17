@@ -44,6 +44,16 @@ router.patch('/:id/status', async (req, res, next) => {
       updateData.completedAt = new Date();
     } else if (data.status === 'DELIVERED') {
       updateData.deliveredAt = new Date();
+    } else if (data.status === 'CANCELLED' && data.paymentStatus === undefined) {
+      // Hủy đơn: cũng cập nhật paymentStatus thành CANCELLED (trừ đơn đã thanh toán)
+      // để đơn không còn xuất hiện ở mục "Đơn chưa thanh toán".
+      const current = await prisma.order.findUnique({
+        where: { id: req.params.id },
+        select: { paymentStatus: true }
+      });
+      if (current && current.paymentStatus !== 'PAID') {
+        updateData.paymentStatus = 'CANCELLED';
+      }
     }
 
     let order;

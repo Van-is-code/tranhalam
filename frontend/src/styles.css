@@ -909,9 +909,10 @@ select.field {
 .modal-body { padding: 16px; flex: 1; overflow-y: auto; }
 .bill-section { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
 .bill-section:last-child { border-bottom: none; }
-.bill-section h3 { margin: 0 0 12px; font-size: 14px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .5px; }
+.bill-section h3 { margin: 0 0 12px; font-size: 14px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .5px; display: flex; align-items: center; gap: 6px; }
 .bill-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; font-size: 13px; }
 .bill-row span { color: var(--ink-2); }
+.bill-note-text { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; word-break: break-word; padding: 10px 12px; background: var(--amber-light); border-left: 3px solid var(--amber); border-radius: var(--radius-s); }
 
 .timeline { display: flex; flex-direction: column; gap: 16px; }
 .timeline-item { display: flex; gap: 12px; }

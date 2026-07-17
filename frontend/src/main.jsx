@@ -23,6 +23,7 @@ import {
   ReceiptText,
   RefreshCw,
   ShoppingBag,
+  StickyNote,
   Store,
   Users,
   Trash2,
@@ -1175,6 +1176,12 @@ function Orders({ title, statuses, emptyText = 'Chưa có bill.', user, refreshT
                 <h3>Danh sách món</h3>
                 {selectedOrder.items.map((item) => (<div className="bill-row" key={item.id}><span>{item.quantity}× {item.name}</span><b>{money(item.price * item.quantity)}</b></div>))}
               </div>
+              {selectedOrder.note?.trim() && (
+                <div className="bill-section">
+                  <h3><StickyNote size={14} /> Ghi chú của khách</h3>
+                  <p className="bill-note-text">{selectedOrder.note}</p>
+                </div>
+              )}
               <div className="bill-section" style={{ borderTop: '2px solid var(--border)', paddingTop: 12 }}>
                 <div className="bill-row" style={{ fontSize: 14, fontWeight: 700 }}><span>Tổng cộng:</span><b>{money(selectedOrder.subtotal)}</b></div>
               </div>
@@ -1242,6 +1249,12 @@ function BillDetailModal({ order, onClose }) {
               <h3>Danh sách món</h3>
               {order.items.map((item) => (<div className="bill-row" key={item.id}><span>{item.quantity}× {item.name}</span><b>{money(item.price * item.quantity)}</b></div>))}
             </div>
+            {order.note?.trim() && (
+              <div className="bill-section">
+                <h3><StickyNote size={14} /> Ghi chú của khách</h3>
+                <p className="bill-note-text">{order.note}</p>
+              </div>
+            )}
             <div className="bill-section" style={{ borderTop: '2px solid var(--border)', paddingTop: 12 }}>
               <div className="bill-row" style={{ fontSize: 14, fontWeight: 700 }}><span>Tổng cộng:</span><b>{money(order.subtotal)}</b></div>
             </div>
@@ -1771,7 +1784,7 @@ function UnpaidOrders({ refreshToken, user, onConfirm, onAlert }) {
   const [selectedIds, setSelectedIds] = useState({});
   const [subTab, setSubTab] = useState('all'); // 'all' or 'by-table'
 
-  const load = () => api('/api/orders').then((allOrders) => { setOrders(allOrders.filter((o) => o.paymentStatus !== 'PAID')); });
+  const load = () => api('/api/orders').then((allOrders) => { setOrders(allOrders.filter((o) => o.paymentStatus !== 'PAID' && o.status !== 'CANCELLED')); });
   useEffect(() => { load(); }, [refreshToken]);
   useRealtimeUpdates(['orders'], load);
 
